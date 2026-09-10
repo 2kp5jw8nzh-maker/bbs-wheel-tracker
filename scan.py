@@ -49,9 +49,19 @@ def send_phone_alert(wheel_type, title, total_price, link):
     except Exception as e:
         print(f"[WARN] Failed to send ntfy alert: {e}")
 
+def build_search_url(query):
+    """
+    eBay's main /sch/i.html search endpoint appears to detect non-browser
+    requests and can return a generic category page instead of real results.
+    The /shop/<slug> endpoint has proven reliable for plain HTTP requests
+    (no JS execution, no cookies) in testing, so we use that instead.
+    """
+    slug = re.sub(r'[^a-z0-9]+', '-', query.lower()).strip('-')
+    return f"https://www.ebay.de/shop/{slug}?_nkw={requests.utils.quote(query)}"
+
 def scan_ebay_germany(eur_to_sgd):
     print("Scanning eBay Germany for BBS wheels...")
-    url = f"https://www.ebay.de/sch/i.html?_nkw={requests.utils.quote(SEARCH_QUERY)}&_sacat=0"
+    url = build_search_url(SEARCH_QUERY)
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
