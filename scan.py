@@ -12,6 +12,21 @@ ESTIMATED_SHIPPING_SGD = 500  # Average cost to ship 4 bare rims internationally
 
 SEARCH_QUERY = "BBS 19x8.5 ET35 5x112"
 
+# A realistic set of headers, matching what a real Chrome browser on Windows sends.
+# eBay's anti-bot systems weigh header completeness/consistency, not just User-Agent.
+BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+}
+
 def get_sgd_exchange_rate():
     try:
         res = requests.get("https://open.er-api.com/v6/latest/EUR", timeout=10).json()
@@ -51,24 +66,36 @@ def send_phone_alert(wheel_type, title, total_price, link):
 
 def build_search_url(query):
     """
-    eBay's main /sch/i.html search endpoint appears to detect non-browser
-    requests and can return a generic category page instead of real results.
-    The /shop/<slug> endpoint has proven reliable for plain HTTP requests
-    (no JS execution, no cookies) in testing, so we use that instead.
+    eBay's /sch/i.html search endpoint can return a stripped generic page
+    for requests it flags as automated. /shop/<slug> has proven more
+    reliable for plain HTTP requests without JS execution.
     """
     slug = re.sub(r'[^a-z0-9]+', '-', query.lower()).strip('-')
     return f"https://www.ebay.de/shop/{slug}?_nkw={requests.utils.quote(query)}"
 
 def scan_ebay_germany(eur_to_sgd):
     print("Scanning eBay Germany for BBS wheels...")
-    url = build_search_url(SEARCH_QUERY)
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
-    }
+
+    # Use a session so cookies from the homepage visit carry over to the
+    # search request, similar to how a real browser establishes a session
+    # before navigating to a search results page.
+    session = requests.Session()
+    session.headers.update(BROWSER_HEADERS)
 
     try:
-        response = requests.get(url, headers=headers, timeout=15)
+        # Step 1: visit the homepage first to pick up session cookies.
+        homepage_resp = session.get("https://www.ebay.de/", timeout=15)
+        print(f"[INFO] Homepage visit status: {homepage_resp.status_code}, "
+              f"cookies received: {len(session.cookies)}")
+
+        # Step 2: now hit the actual search URL, with the Referer header
+        # pointing back at the homepage like a real navigation would.
+        url = build_search_url(SEARCH_QUERY)
+        search_headers = {"Referer": "https://www.ebay.de/", "Sec-Fetch-Site": "same-origin"}
+        response = session.get(url, headers=search_headers, timeout=15)
+        print(f"[INFO] Search request status: {response.status_code}, "
+              f"final URL: {response.url}")
+
         soup = BeautifulSoup(response.text, 'html.parser')
 
         # eBay's current (2026) search results layout uses su-card-container cards.
