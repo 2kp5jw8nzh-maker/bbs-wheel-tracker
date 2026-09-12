@@ -119,7 +119,10 @@ def scan_ebay_germany(eur_to_sgd):
             title = title_div.get_text(strip=True).lower()
             link = link_elem['href'].split('?')[0]
 
-            if "19" in title and "8.5" in title and ("et35" in title or "et 35" in title or "is35" in title):
+            # eBay's fallback ("similar items") search can surface non-BBS
+            # wheels that happen to match the size/offset, so the brand
+            # name must be checked explicitly, not just the dimensions.
+            if "bbs" in title and "19" in title and "8.5" in title and ("et35" in title or "et 35" in title or "is35" in title):
                 try:
                     item_price_eur = parse_price_eur(price_elem.get_text())
                     item_price_sgd = item_price_eur * eur_to_sgd
