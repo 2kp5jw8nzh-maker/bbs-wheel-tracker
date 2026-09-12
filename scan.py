@@ -6,11 +6,15 @@ from bs4 import BeautifulSoup
 NTFY_TOPIC = "audi_a6_bbs_wheels_monitor"  # Change this to any unique name
 NTFY_URL = f"https://ntfy.sh/{NTFY_TOPIC}"
 
-FORGED_BUDGET = 2000
-FLOW_BUDGET = 1300
+FORGED_BUDGET = 2000       # Total budget for a full set of 4 wheels, forged
+FLOW_BUDGET = 1300         # Total budget for a full set of 4 wheels, flow-formed
 ESTIMATED_SHIPPING_SGD = 500  # Average cost to ship 4 bare rims internationally
+WHEELS_NEEDED = 4          # A full set
 
 SEARCH_QUERY = "BBS 19x8.5 ET35 5x112"
+
+# Keywords indicating a listing is already for a full set/pair, not a single wheel.
+SET_KEYWORDS = ["satz", "kompletträder", "4x", "4 stück", "4stk", "satz von 4", "set of 4"]
 
 # A realistic set of headers, matching what a real Chrome browser on Windows sends.
 # eBay's anti-bot systems weigh header completeness/consistency, not just User-Agent.
@@ -52,7 +56,7 @@ def parse_price_eur(price_text):
     return float(cleaned)
 
 def send_phone_alert(wheel_type, title, total_price, link):
-    message = f"MATCH FOUND ({wheel_type})!\nItem: {title}\nTotal Est Cost: SGD ${total_price:.2f}\nLink: {link}"
+    message = f"MATCH FOUND ({wheel_type})!\nItem: {title}\nTotal Est Cost (set of 4): SGD ${total_price:.2f}\nLink: {link}"
     headers = {
         "Title": "BBS 19x8.5J ET35 Alert",
         "Priority": "high",
@@ -125,8 +129,17 @@ def scan_ebay_germany(eur_to_sgd):
             if "bbs" in title and "19" in title and "8.5" in title and ("et35" in title or "et 35" in title or "is35" in title):
                 try:
                     item_price_eur = parse_price_eur(price_elem.get_text())
-                    item_price_sgd = item_price_eur * eur_to_sgd
-                    total_landed_sgd = item_price_sgd + ESTIMATED_SHIPPING_SGD
+
+                    # Most listings are priced per single wheel unless they
+                    # explicitly say otherwise. Multiply by WHEELS_NEEDED so
+                    # the budget comparison reflects the cost of a full set,
+                    # not just one wheel.
+                    is_full_set_listing = any(kw in title for kw in SET_KEYWORDS)
+                    multiplier = 1 if is_full_set_listing else WHEELS_NEEDED
+
+                    set_price_eur = item_price_eur * multiplier
+                    set_price_sgd = set_price_eur * eur_to_sgd
+                    total_landed_sgd = set_price_sgd + ESTIMATED_SHIPPING_SGD
 
                     is_forged = any(kw in title for kw in ["forged", "geschmiedet", "ri-a", "lm", "ri-d"])
 
