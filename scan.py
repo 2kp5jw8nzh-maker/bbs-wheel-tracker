@@ -67,9 +67,18 @@ def parse_price_eur(price_text):
 
 
 def parse_price_jpy(price_text):
-    """JPY prices have no decimal places, e.g. '228,000円'."""
-    cleaned = re.sub(r'[^0-9]', '', price_text)
-    return float(cleaned) if cleaned else 0.0
+    """
+    Extracts the FIRST 'NNN,NNN円' amount from the text - this is the
+    current/live price. Yahoo Auctions price blocks often contain multiple
+    numbers concatenated together (current price, buy-it-now price,
+    shipping cost), so naively stripping all non-digits would smash them
+    into one huge garbage number. Example raw text:
+    '現在 199,999円 即決 201,999円     送料未定' -> we want just 199999.
+    """
+    match = re.search(r'([\d,]+)\s*円', price_text)
+    if not match:
+        return 0.0
+    return float(match.group(1).replace(',', ''))
 
 
 def offset_in_range(title):
