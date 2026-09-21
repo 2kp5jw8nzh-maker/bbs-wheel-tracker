@@ -186,12 +186,17 @@ def scan_yahoo_auctions_japan(jpy_to_sgd):
         else:
             print(f"[INFO] Yahoo Auctions JP: {len(listings)} listing elements found on page.")
 
+        extraction_failures = 0
+        filter_mismatches = 0
+        matches_found = 0
+
         for item in listings:
             title_elem = item.find(class_=re.compile('Product__title'))
             price_elem = item.find(class_=re.compile('Product__price'))
             link_elem = item.find('a', href=True)
 
             if not (title_elem and price_elem and link_elem):
+                extraction_failures += 1
                 continue
 
             title_raw = title_elem.get_text(strip=True)
@@ -199,6 +204,7 @@ def scan_yahoo_auctions_japan(jpy_to_sgd):
             link = link_elem['href'].split('?')[0]
 
             if "bbs" in title and "19" in title and "8.5" in title and offset_in_range(title_raw):
+                matches_found += 1
                 try:
                     item_price_jpy = parse_price_jpy(price_elem.get_text())
                     is_full_set = any(kw in title for kw in SET_KEYWORDS_JP)
@@ -215,7 +221,15 @@ def scan_yahoo_auctions_japan(jpy_to_sgd):
                         send_phone_alert("Yahoo Auctions JP", "FLOW-FORMED", title, total_landed_sgd, link)
                 except ValueError:
                     continue
+            else:
+                filter_mismatches += 1
+
+        if listings:
+            print(f"[INFO] Yahoo Auctions JP: extraction_failures={extraction_failures}, "
+                  f"filter_mismatches={filter_mismatches}, matches_found={matches_found} "
+                  f"(out of {len(listings)} total elements)")
     except Exception as e:
+        print(f"[ERROR] Yahoo Auctions JP scan failed: {e}")
         print(f"[ERROR] Yahoo Auctions JP scan failed: {e}")
 
 
