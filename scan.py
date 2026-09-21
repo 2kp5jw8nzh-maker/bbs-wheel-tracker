@@ -214,12 +214,17 @@ def scan_yahoo_auctions_japan(jpy_to_sgd):
                     set_price_sgd = set_price_jpy * jpy_to_sgd
                     total_landed_sgd = set_price_sgd + ESTIMATED_SHIPPING_JAPAN_SGD
                     is_forged = any(kw in title for kw in ["forged", "鍛造", "ri-a", "lm", "ri-d"])
+                    budget = FORGED_BUDGET if is_forged else FLOW_BUDGET
 
-                    if is_forged and total_landed_sgd <= FORGED_BUDGET:
-                        send_phone_alert("Yahoo Auctions JP", "FORGED", title, total_landed_sgd, link)
-                    elif not is_forged and total_landed_sgd <= FLOW_BUDGET:
-                        send_phone_alert("Yahoo Auctions JP", "FLOW-FORMED", title, total_landed_sgd, link)
-                except ValueError:
+                    if total_landed_sgd <= budget:
+                        send_phone_alert("Yahoo Auctions JP", "FORGED" if is_forged else "FLOW-FORMED",
+                                          title, total_landed_sgd, link)
+                    else:
+                        print(f"[INFO] Yahoo Auctions JP match over budget: '{title_raw}' - "
+                              f"est. SGD ${total_landed_sgd:.2f} (budget: SGD ${budget})")
+                except ValueError as e:
+                    print(f"[WARN] Yahoo Auctions JP: price parse failed for '{title_raw}' "
+                          f"(price text: '{price_elem.get_text()}'): {e}")
                     continue
             else:
                 filter_mismatches += 1
